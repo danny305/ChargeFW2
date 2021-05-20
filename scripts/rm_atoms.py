@@ -61,7 +61,7 @@ def append_rm_atom_site_category(block, rm_atoms, tags):
 
     table = block.find(prefix, tags)
     if table:
-        loop = table.get_loop()
+        loop = table.loop
     else: 
         loop = block.init_loop(prefix, tags)
 
@@ -76,6 +76,41 @@ def filter_atoms_to_remove(atom_site, allowed_elements=['C','H','N','O','S','P',
         (idx, atom) 
         for idx, atom in enumerate(atom_site) 
             if not atom[2] in allowed_elements
+    ])
+
+    return rm_idx, rm_rows
+
+
+def filter_residue_atoms_to_remove(atom_site, key, label_comp_id=False):
+    '''
+        atom_site row list indice
+        index 5  = _atom_site.label_comp_id
+        index 17 = _atom_site.auth_comp_id
+    
+    '''
+    if isinstance(key, (str, tuple, list, set)):
+        if isinstance(key, str):
+            key = [key]
+        if not isinstance(key, set):
+            key = set(key)
+    else:
+        raise TypeError(
+            f'key parameter must be either a str of 1 comp_id" \
+            "or a list/tuple/set of comp_id. key type: {type(key)}'
+        )
+
+    label_idx = 5
+    auth_idx  = 17
+
+    if label_comp_id:
+        comp_idx = label_idx
+    else: 
+        comp_idx = auth_idx
+
+    rm_idx, rm_rows = zip(*[
+        (idx, atom) 
+        for idx, atom in enumerate(atom_site) 
+            if atom[comp_idx] in key
     ])
 
     return rm_idx, rm_rows
@@ -103,18 +138,58 @@ if __name__=="__main__":
 
     atom_site = block.find_mmcif_category("_atom_site.")
 
-    rm_idx, rm_atoms = filter_atoms_to_remove(atom_site, param_elements)
 
-    rm_elem_counts = Counter([row[2] for row in rm_atoms])
 
-    append_rm_atom_site_category(block, rm_atoms, atom_site.tags)
+    # Remove cation atoms
+    rm_elem_idx, rm_elem_atoms = filter_atoms_to_remove(atom_site, param_elements)
 
-    rm_atoms_from_atom_site(atom_site, rm_idx)
+    rm_elem_counts = Counter([row[2] for row in rm_elem_atoms])
 
-    if rm_elem_counts:
-        print(f'Atoms rows removed by element: ', rm_elem_counts)
+    append_rm_atom_site_category(block, rm_elem_atoms, atom_site.tags)
 
-        rm_elem_str = '_rm_' + '_'.join([elem.capitalize() for elem in rm_elem_counts.keys()]) + '.'
+    rm_atoms_from_atom_site(atom_site, rm_elem_idx)
+
+
+
+    # Remove water atoms
+    rm_water_idx, rm_water_atoms = filter_residue_atoms_to_remove(atom_site, ['HOH'])
+
+    label_idx = 5
+    auth_idx  = 17
+
+    comp_idx = auth_idx
+    rm_water_counts = Counter([row[comp_idx] for row in rm_water_atoms])
+
+    append_rm_atom_site_category(block, rm_water_atoms, atom_site.tags)
+
+    rm_atoms_from_atom_site(atom_site, rm_water_idx)
+
+
+
+    # Write out a file if atoms were removed
+    if rm_elem_counts or rm_water_atoms:
+        rm_list = []
+
+        atoms_removed = Counter()
+        if rm_elem_counts:
+            atoms_removed.update(rm_elem_counts)
+
+            rm_list.extend([elem.capitalize() for elem in rm_elem_counts.keys()])
+
+        else: 
+            print('No cations were removed.')
+
+        if rm_water_counts:
+            atoms_removed.update(rm_water_counts)
+
+            rm_list.extend([comp.upper() for comp in rm_water_counts.keys()])
+
+        else: 
+            print('No waters were removed.')
+
+        print(f'Total Number of rows removed from atom_site: {atoms_removed}')
+
+        rm_elem_str = '_rm_' + '_'.join(rm_list) + '.'
 
         pdb_name, pdb_ext = str(args.cif_file).split('.', 1)
 
@@ -123,6 +198,3 @@ if __name__=="__main__":
         doc.write_file(out_cif, gemmi.cif.Style.Pdbx)
 
         print(f'writing out: {out_cif}')
-
-    else: 
-        print('No Elements were removed.')
