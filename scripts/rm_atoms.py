@@ -23,6 +23,11 @@ def cli():
         default=Path('../data/parameters')
     )
 
+    # TODO finish these and integrate them into main
+    parser.add_argument('--keep-cations', required=False,)
+
+    parser.add_argument('--keep-water', required=False,)
+
     args = parser.parse_args()
 
     args.cif_file = args.cif_dir / args.cif_file
@@ -70,33 +75,42 @@ def append_rm_atom_site_category(block, rm_atoms, tags):
 
 
 
-def filter_atoms_to_remove(atom_site, allowed_elements=['C','H','N','O','S','P','F','CL','BR','I']):
-
-    rm_idx, rm_rows = zip(*[
-        (idx, atom) 
-        for idx, atom in enumerate(atom_site) 
-            if not atom[2] in allowed_elements
-    ])
-
-    return rm_idx, rm_rows
-
-
-def filter_residue_atoms_to_remove(atom_site, key, label_comp_id=False):
+def filter_element_atoms_to_remove(atom_site, allowed_elements=['C','H','N','O','S','P','F','CL','BR','I']):
     '''
         atom_site row list indice
         index 5  = _atom_site.label_comp_id
         index 17 = _atom_site.auth_comp_id
     
     '''
-    if isinstance(key, (str, tuple, list, set)):
-        if isinstance(key, str):
-            key = [key]
-        if not isinstance(key, set):
-            key = set(key)
+    filtered_rows = [
+        (idx, atom) 
+        for idx, atom in enumerate(atom_site) 
+            if not atom[2] in allowed_elements
+    ]
+
+    rm_idx, rm_rows = [], []
+    if filtered_rows:
+        rm_idx, rm_rows = zip(*filtered_rows)
+
+    return rm_idx, rm_rows
+
+
+def filter_residue_atoms_to_remove(atom_site, rm_residues, label_comp_id=False):
+    '''
+        atom_site row list indice
+        index 5  = _atom_site.label_comp_id
+        index 17 = _atom_site.auth_comp_id
+    
+    '''
+    if isinstance(rm_residues, (str, tuple, list, set)):
+        if isinstance(rm_residues, str):
+            rm_residues = [rm_residues]
+        if not isinstance(rm_residues, set):
+            rm_residues = set(rm_residues)
     else:
         raise TypeError(
-            f'key parameter must be either a str of 1 comp_id" \
-            "or a list/tuple/set of comp_id. key type: {type(key)}'
+            f'rm_residues parameter must be either a str of 1 comp_id" \
+            "or a list/tuple/set of comp_id. rm_residues type: {type(rm_residues)}'
         )
 
     label_idx = 5
@@ -107,11 +121,15 @@ def filter_residue_atoms_to_remove(atom_site, key, label_comp_id=False):
     else: 
         comp_idx = auth_idx
 
-    rm_idx, rm_rows = zip(*[
+    filtered_rows = [
         (idx, atom) 
         for idx, atom in enumerate(atom_site) 
-            if atom[comp_idx] in key
-    ])
+            if atom[comp_idx] in rm_residues
+    ]
+
+    rm_idx, rm_rows = [], []
+    if filtered_rows:
+        rm_idx, rm_rows = zip(*filtered_rows)
 
     return rm_idx, rm_rows
 
@@ -141,7 +159,7 @@ if __name__=="__main__":
 
 
     # Remove cation atoms
-    rm_elem_idx, rm_elem_atoms = filter_atoms_to_remove(atom_site, param_elements)
+    rm_elem_idx, rm_elem_atoms = filter_element_atoms_to_remove(atom_site, param_elements)
 
     rm_elem_counts = Counter([row[2] for row in rm_elem_atoms])
 
