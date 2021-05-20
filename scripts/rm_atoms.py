@@ -22,11 +22,11 @@ def cli():
     parser.add_argument('-p','--params-dir', required=False, type=Path, 
         default=Path('../data/parameters')
     )
+    parser.add_argument('--keep-cations', required=False, 
+        action='store_false', dest='rm_cations')
 
-    # TODO finish these and integrate them into main
-    parser.add_argument('--keep-cations', required=False,)
-
-    parser.add_argument('--keep-water', required=False,)
+    parser.add_argument('--keep-water', required=False,
+        action='store_false', dest='rm_water')
 
     args = parser.parse_args()
 
@@ -75,13 +75,12 @@ def append_rm_atom_site_category(block, rm_atoms, tags):
 
 
 
-def filter_element_atoms_to_remove(atom_site, allowed_elements=['C','H','N','O','S','P','F','CL','BR','I']):
+def filter_atoms_to_rm_by_element(atom_site, allowed_elements=['C','H','N','O','S','P','F','CL','BR','I']):
     '''
         atom_site row list indice
-        index 5  = _atom_site.label_comp_id
-        index 17 = _atom_site.auth_comp_id
-    
+        index 2 = _atom_site.type_symbol
     '''
+
     filtered_rows = [
         (idx, atom) 
         for idx, atom in enumerate(atom_site) 
@@ -95,13 +94,13 @@ def filter_element_atoms_to_remove(atom_site, allowed_elements=['C','H','N','O',
     return rm_idx, rm_rows
 
 
-def filter_residue_atoms_to_remove(atom_site, rm_residues, label_comp_id=False):
+def filter_atoms_to_rm_by_residue(atom_site, rm_residues, label_comp_id=False):
     '''
         atom_site row list indice
         index 5  = _atom_site.label_comp_id
         index 17 = _atom_site.auth_comp_id
-    
     '''
+
     if isinstance(rm_residues, (str, tuple, list, set)):
         if isinstance(rm_residues, str):
             rm_residues = [rm_residues]
@@ -156,36 +155,37 @@ if __name__=="__main__":
 
     atom_site = block.find_mmcif_category("_atom_site.")
 
+    rm_elem_counts, rm_water_counts = 0, 0
+
+    if args.rm_cations:
+        type_symbol = 2
+        elem_idx = type_symbol
+
+        rm_elem_idx, rm_elem_atoms = filter_atoms_to_rm_by_element(atom_site, param_elements)
+
+        rm_elem_counts = Counter([row[elem_idx] for row in rm_elem_atoms])
+
+        append_rm_atom_site_category(block, rm_elem_atoms, atom_site.tags)
+
+        rm_atoms_from_atom_site(atom_site, rm_elem_idx)
 
 
-    # Remove cation atoms
-    rm_elem_idx, rm_elem_atoms = filter_element_atoms_to_remove(atom_site, param_elements)
+    if args.rm_water:
+        label_idx = 5
+        auth_idx  = 17
+        comp_idx = auth_idx
 
-    rm_elem_counts = Counter([row[2] for row in rm_elem_atoms])
+        rm_water_idx, rm_water_atoms = filter_atoms_to_rm_by_residue(atom_site, ['HOH'])
 
-    append_rm_atom_site_category(block, rm_elem_atoms, atom_site.tags)
+        rm_water_counts = Counter([row[comp_idx] for row in rm_water_atoms])
 
-    rm_atoms_from_atom_site(atom_site, rm_elem_idx)
+        append_rm_atom_site_category(block, rm_water_atoms, atom_site.tags)
 
-
-
-    # Remove water atoms
-    rm_water_idx, rm_water_atoms = filter_residue_atoms_to_remove(atom_site, ['HOH'])
-
-    label_idx = 5
-    auth_idx  = 17
-
-    comp_idx = auth_idx
-    rm_water_counts = Counter([row[comp_idx] for row in rm_water_atoms])
-
-    append_rm_atom_site_category(block, rm_water_atoms, atom_site.tags)
-
-    rm_atoms_from_atom_site(atom_site, rm_water_idx)
-
+        rm_atoms_from_atom_site(atom_site, rm_water_idx)
 
 
     # Write out a file if atoms were removed
-    if rm_elem_counts or rm_water_atoms:
+    if rm_elem_counts or rm_water_counts:
         rm_list = []
 
         atoms_removed = Counter()
