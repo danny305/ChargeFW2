@@ -1,8 +1,9 @@
+from os import name
 import gemmi
 import argparse
 import json
 from pathlib import Path
-from collections import Counter
+from collections import Counter, namedtuple
 
 
 
@@ -59,6 +60,36 @@ def elements_from_params(params):
     params_elements = {param['key'][0].upper() for param in atom_data}
 
     return params_elements
+
+
+def fetch_chem_comp_category(block):
+
+    chem_comp = block.find_mmcif_category("_chem_comp.")
+
+    if chem_comp:
+        ChemComp = namedtuple('ChemComp', ('id', 'type', 'name','formula', 'mass'))
+
+        return {
+            ChemComp(comp[0], comp[1], comp[3], comp[5], comp[6])
+            for comp in chem_comp
+        }
+    
+    else:
+        raise RuntimeError(f'No chem_comp category in cif file {block.name}.cif')
+
+
+def fetch_chem_comp_ids(block):
+
+    chem_comps = fetch_chem_comp_category(block)
+
+    return {comp.id for comp in chem_comps}
+
+
+def fetch_non_polymer_chem_comp(block):
+
+    chem_comps = fetch_chem_comp_category(block)
+
+    return {comp.id for comp in chem_comps if comp.type.strip()=='non-polymer'}
 
 
 def append_rm_atom_site_category(block, rm_atoms, tags):
@@ -237,6 +268,7 @@ def rm_halogen_atoms(block, elements_allowed):
     halogens = {'F','CL','BR', 'I'}
 
     return rm_element_atoms(block, elements_allowed - halogens)
+
 
 
 
