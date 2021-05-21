@@ -3,7 +3,6 @@ import argparse
 import json
 from pathlib import Path
 from collections import Counter
-from pprint import pprint
 
 
 
@@ -22,8 +21,8 @@ def cli():
     parser.add_argument('-p','--params-dir', required=False, type=Path, 
         default=Path('../data/parameters')
     )
-    parser.add_argument('--keep-cations', required=False, 
-        action='store_false', dest='rm_cations')
+    parser.add_argument('--keep-elements', required=False, 
+        action='store_false', dest='rm_elem')
 
     parser.add_argument('--keep-water', required=False,
         action='store_false', dest='rm_water')
@@ -43,7 +42,6 @@ def cli():
     return args
 
 
-
 def elements_from_params(params):
 
     if params.exists():
@@ -59,7 +57,6 @@ def elements_from_params(params):
     return params_elements
 
 
-
 def append_rm_atom_site_category(block, rm_atoms, tags):
 
     prefix = '_rm_atom_site.'
@@ -72,7 +69,6 @@ def append_rm_atom_site_category(block, rm_atoms, tags):
 
     for atom in rm_atoms:
         loop.add_row(atom)
-
 
 
 def filter_atoms_to_rm_by_element(atom_site, allowed_elements=['C','H','N','O','S','P','F','CL','BR','I']):
@@ -133,12 +129,51 @@ def filter_atoms_to_rm_by_residue(atom_site, rm_residues, label_comp_id=False):
     return rm_idx, rm_rows
 
 
-
 def rm_atoms_from_atom_site(atom_site, rm_idx):
 
     for idx in rm_idx[::-1]:
         atom_site.remove_row(idx)
 
+
+def rm_element_atoms(block, elements_allowed):
+
+    atom_site = block.find_mmcif_category("_atom_site.")
+
+    type_symbol = 2
+    elem_idx = type_symbol
+
+    rm_elem_idx, rm_elem_atoms = filter_atoms_to_rm_by_element(atom_site, elements_allowed)
+
+    cation_count = Counter([row[elem_idx] for row in rm_elem_atoms])
+
+    append_rm_atom_site_category(block, rm_elem_atoms, atom_site.tags)
+
+    rm_atoms_from_atom_site(atom_site, rm_elem_idx)
+
+    return cation_count
+
+
+def rm_water_atoms(block, label=False):
+
+    atom_site = block.find_mmcif_category("_atom_site.")
+
+    label_idx = 5
+    auth_idx  = 17
+
+    if label:
+        comp_idx = label_idx
+    else:
+        comp_idx = auth_idx
+
+    rm_water_idx, rm_water_atoms = filter_atoms_to_rm_by_residue(atom_site, ['HOH'])
+
+    water_count = Counter([row[comp_idx] for row in rm_water_atoms])
+
+    append_rm_atom_site_category(block, rm_water_atoms, atom_site.tags)
+
+    rm_atoms_from_atom_site(atom_site, rm_water_idx)
+
+    return water_count
 
 
 if __name__=="__main__":
@@ -150,57 +185,33 @@ if __name__=="__main__":
     print(f'Elements found in params file: {param_elements}')
 
     doc = gemmi.cif.read_file(str(args.cif_file))
-
     block = doc.sole_block()
 
-    atom_site = block.find_mmcif_category("_atom_site.")
+    rm_elem_count, rm_water_count = {}, {}
 
-    rm_elem_counts, rm_water_counts = 0, 0
-
-    if args.rm_cations:
-        type_symbol = 2
-        elem_idx = type_symbol
-
-        rm_elem_idx, rm_elem_atoms = filter_atoms_to_rm_by_element(atom_site, param_elements)
-
-        rm_elem_counts = Counter([row[elem_idx] for row in rm_elem_atoms])
-
-        append_rm_atom_site_category(block, rm_elem_atoms, atom_site.tags)
-
-        rm_atoms_from_atom_site(atom_site, rm_elem_idx)
-
+    if args.rm_elem:
+        rm_cations_count = rm_element_atoms(block, param_elements)
 
     if args.rm_water:
-        label_idx = 5
-        auth_idx  = 17
-        comp_idx = auth_idx
-
-        rm_water_idx, rm_water_atoms = filter_atoms_to_rm_by_residue(atom_site, ['HOH'])
-
-        rm_water_counts = Counter([row[comp_idx] for row in rm_water_atoms])
-
-        append_rm_atom_site_category(block, rm_water_atoms, atom_site.tags)
-
-        rm_atoms_from_atom_site(atom_site, rm_water_idx)
-
+        rm_water_count = rm_water_atoms(block)
 
     # Write out a file if atoms were removed
-    if rm_elem_counts or rm_water_counts:
+    if rm_elem_count or rm_water_count:
         rm_list = []
 
         atoms_removed = Counter()
-        if rm_elem_counts:
-            atoms_removed.update(rm_elem_counts)
+        if rm_elem_count:
+            atoms_removed.update(rm_elem_count)
 
-            rm_list.extend([elem.capitalize() for elem in rm_elem_counts.keys()])
+            rm_list.extend([elem.capitalize() for elem in rm_elem_count.keys()])
 
         else: 
-            print('No cations were removed.')
+            print('No elements were removed.')
 
-        if rm_water_counts:
-            atoms_removed.update(rm_water_counts)
+        if rm_water_count:
+            atoms_removed.update(rm_water_count)
 
-            rm_list.extend([comp.upper() for comp in rm_water_counts.keys()])
+            rm_list.extend([comp.upper() for comp in rm_water_count.keys()])
 
         else: 
             print('No waters were removed.')
@@ -216,3 +227,6 @@ if __name__=="__main__":
         doc.write_file(out_cif, gemmi.cif.Style.Pdbx)
 
         print(f'writing out: {out_cif}')
+
+    else: 
+        print(f'Nothing to write out.')
