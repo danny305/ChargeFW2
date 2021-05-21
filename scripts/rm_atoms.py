@@ -21,11 +21,15 @@ def cli():
     parser.add_argument('-p','--params-dir', required=False, type=Path, 
         default=Path('../data/parameters')
     )
-    parser.add_argument('--keep-elements', required=False, 
-        action='store_false', dest='rm_elem')
-
+    parser.add_argument('--keep-all-elements', required=False, 
+        action='store_false', dest='rm_elem'
+    )
+    parser.add_argument('--keep-cations', required=False, 
+        action='store_true',
+    )
     parser.add_argument('--keep-water', required=False,
-        action='store_false', dest='rm_water')
+        action='store_false', dest='rm_water'
+    )
 
     args = parser.parse_args()
 
@@ -153,7 +157,7 @@ def rm_element_atoms(block, elements_allowed):
     return cation_count
 
 
-def rm_water_atoms(block, label=False):
+def rm_residue_atoms(block, rm_residues, label=False):
 
     atom_site = block.find_mmcif_category("_atom_site.")
 
@@ -176,13 +180,61 @@ def rm_water_atoms(block, label=False):
     return water_count
 
 
+def rm_water_atoms(block, label=False):
+
+    residue = {'HOH'}
+
+    return rm_residue_atoms(block, residue, label)
+
+
+def keep_element_atoms(elements_allowed, add_elements):
+
+    assert isinstance(add_elements, (tuple, set, list))
+
+    elements_allowed = set(elements_allowed)
+
+    for elem in add_elements: 
+        elements_allowed.add(elem)
+
+    return elements_allowed
+
+
+def keep_cation_atoms(elements_allowed):
+
+    cations = {
+        'LI', 'NA', 'K',
+        'MG', 'CA',
+        'CU', 'FE', 'NI', 'CO', 'MN', 'ZN'
+    }
+
+    return keep_element_atoms(elements_allowed, cations)
+
+
+def rm_cation_atoms(block, elements_allowed):
+
+    elements_allowed = set(elements_allowed)
+
+    cations = {
+        'LI', 'NA', 'K',
+        'MG', 'CA',
+        'CU', 'FE', 'NI', 'CO', 'MN', 'ZN'
+    }
+
+    return rm_element_atoms(block, elements_allowed - cations)
+
+
+
 if __name__=="__main__":
 
     args = cli()
 
     param_elements = elements_from_params(args.params_file)
-
     print(f'Elements found in params file: {param_elements}')
+
+    if args.keep_cations:
+        print('Appended cation elements')
+        param_elements = keep_cation_atoms(param_elements)
+        print(f'Elements allowed: {param_elements}')
 
     doc = gemmi.cif.read_file(str(args.cif_file))
     block = doc.sole_block()
@@ -190,7 +242,7 @@ if __name__=="__main__":
     rm_elem_count, rm_water_count = {}, {}
 
     if args.rm_elem:
-        rm_cations_count = rm_element_atoms(block, param_elements)
+        rm_elem_count = rm_element_atoms(block, param_elements)
 
     if args.rm_water:
         rm_water_count = rm_water_atoms(block)
