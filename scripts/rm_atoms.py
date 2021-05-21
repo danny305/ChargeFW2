@@ -200,7 +200,7 @@ def rm_residue_atoms(block, rm_residues, label=False):
     else:
         comp_idx = auth_idx
 
-    rm_water_idx, rm_water_atoms = filter_atoms_to_rm_by_residue(atom_site, ['HOH'])
+    rm_water_idx, rm_water_atoms = filter_atoms_to_rm_by_residue(atom_site, rm_residues)
 
     water_count = Counter([row[comp_idx] for row in rm_water_atoms])
 
