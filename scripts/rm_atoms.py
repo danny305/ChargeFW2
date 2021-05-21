@@ -210,6 +210,13 @@ def keep_cation_atoms(elements_allowed):
     return keep_element_atoms(elements_allowed, cations)
 
 
+def keep_halogen_atoms(elements_allowed):
+
+    halogens = {'F','CL', 'BR', 'I'}
+
+    return keep_element_atoms(elements_allowed, halogens)
+
+
 def rm_cation_atoms(block, elements_allowed):
 
     elements_allowed = set(elements_allowed)
@@ -221,6 +228,15 @@ def rm_cation_atoms(block, elements_allowed):
     }
 
     return rm_element_atoms(block, elements_allowed - cations)
+
+
+def rm_halogen_atoms(block, elements_allowed):
+
+    elements_allowed = set(elements_allowed)
+
+    halogens = {'F','CL','BR', 'I'}
+
+    return rm_element_atoms(block, elements_allowed - halogens)
 
 
 
