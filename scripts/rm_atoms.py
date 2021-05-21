@@ -125,22 +125,22 @@ def filter_atoms_to_rm_by_element(atom_site, allowed_elements=['C','H','N','O','
     return rm_idx, rm_rows
 
 
-def filter_atoms_to_rm_by_residue(atom_site, rm_residues, label_comp_id=False):
+def filter_atoms_to_rm_by_chem_comp_id(atom_site, chem_comp_ids, label_comp_id=False):
     '''
         atom_site row list indice
         index 5  = _atom_site.label_comp_id
         index 17 = _atom_site.auth_comp_id
     '''
 
-    if isinstance(rm_residues, (str, tuple, list, set)):
-        if isinstance(rm_residues, str):
-            rm_residues = [rm_residues]
-        if not isinstance(rm_residues, set):
-            rm_residues = set(rm_residues)
+    if isinstance(chem_comp_ids, (str, tuple, list, set)):
+        if isinstance(chem_comp_ids, str):
+            chem_comp_ids = [chem_comp_ids]
+        if not isinstance(chem_comp_ids, set):
+            chem_comp_ids = set(chem_comp_ids)
     else:
         raise TypeError(
             f'rm_residues parameter must be either a str of 1 comp_id" \
-            "or a list/tuple/set of comp_id. rm_residues type: {type(rm_residues)}'
+            "or a list/tuple/set of comp_id. rm_residues type: {type(chem_comp_ids)}'
         )
 
     label_idx = 5
@@ -154,7 +154,7 @@ def filter_atoms_to_rm_by_residue(atom_site, rm_residues, label_comp_id=False):
     filtered_rows = [
         (idx, atom) 
         for idx, atom in enumerate(atom_site) 
-            if atom[comp_idx] in rm_residues
+            if atom[comp_idx] in chem_comp_ids
     ]
 
     rm_idx, rm_rows = [], []
@@ -188,7 +188,7 @@ def rm_element_atoms(block, elements_allowed):
     return cation_count
 
 
-def rm_residue_atoms(block, rm_residues, label=False):
+def rm_chem_comp_atoms(block, chem_comp_ids, label=False):
 
     atom_site = block.find_mmcif_category("_atom_site.")
 
@@ -200,7 +200,7 @@ def rm_residue_atoms(block, rm_residues, label=False):
     else:
         comp_idx = auth_idx
 
-    rm_water_idx, rm_water_atoms = filter_atoms_to_rm_by_residue(atom_site, rm_residues)
+    rm_water_idx, rm_water_atoms = filter_atoms_to_rm_by_chem_comp_id(atom_site, chem_comp_ids)
 
     water_count = Counter([row[comp_idx] for row in rm_water_atoms])
 
@@ -215,7 +215,7 @@ def rm_water_atoms(block, label=False):
 
     residue = {'HOH'}
 
-    return rm_residue_atoms(block, residue, label)
+    return rm_chem_comp_atoms(block, residue, label)
 
 
 def keep_element_atoms(elements_allowed, add_elements):
