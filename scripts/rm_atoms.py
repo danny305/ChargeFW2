@@ -85,11 +85,20 @@ def fetch_chem_comp_ids(block):
     return {comp.id for comp in chem_comps}
 
 
-def fetch_non_polymer_chem_comp(block):
+def fetch_non_polymer_chem_comp(block, exclude_water=True):
 
     chem_comps = fetch_chem_comp_category(block)
 
-    return {comp.id for comp in chem_comps if comp.type.strip()=='non-polymer'}
+    non_polymers = {
+            comp.id 
+            for comp in chem_comps 
+                if comp.type.strip()=='non-polymer'
+        }
+
+    if exclude_water:
+        non_polymers.discard('HOH')
+
+    return non_polymers
 
 
 def fetch_exp_method(block):
