@@ -92,6 +92,18 @@ def fetch_non_polymer_chem_comp(block):
     return {comp.id for comp in chem_comps if comp.type.strip()=='non-polymer'}
 
 
+def fetch_exp_method(block):
+
+    exp_method = block.find_values('_exptl.method')
+
+    if exp_method:
+        return exp_method[0]
+
+    else:
+        return None
+
+
+
 def append_rm_atom_site_category(block, rm_atoms, tags):
 
     prefix = '_rm_atom_site.'
