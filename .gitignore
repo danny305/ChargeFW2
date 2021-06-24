@@ -1,3 +1,7 @@
 .idea
 test
 cmake-build-*
+build
+chargefw2
+scripts/input
+scripts/output
