@@ -292,6 +292,34 @@ def rm_halogen_atoms(block, elements_allowed):
 
 
 
+def add_back_chem_comp_to_atom_site(block, chem_comps, category='_rm_atom_site.', label=False):
+
+    other_atom_site =  block.find_mmcif_category(category)
+
+    atom_site = block.find_mmcif_category("_atom_site.")
+
+    label_idx = 5
+    auth_idx  = 17
+
+    if label:
+        comp_idx = label_idx
+    else:
+        comp_idx = auth_idx
+
+    loop = atom_site.loop
+    for row in other_atom_site:
+        if row[comp_idx] in chem_comps:
+            loop.add_row(list(row))
+            
+
+
+def add_back_water_atoms(block, label=False):
+
+    add_back_chem_comp_to_atom_site(block, ['HOH'], label=label)
+
+
+
+
 
 if __name__=="__main__":
 
