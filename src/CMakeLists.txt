@@ -11,10 +11,10 @@ configure_file(chargefw2.h.in chargefw2.h)
 
 # Apple Clang does not support -fopenmp; must use llvm clang
 # $ brew install llvm libomp
+find_package(OpenMP REQUIRED)
 set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp")
 set(OpenMP_CXX_LIB_NAMES "omp")
-set(OpenMP_omp_LIBRARY omp)
-find_package(OpenMP REQUIRED)
+set(OpenMP_omp_LIBRARY "omp")
 
 SET(COMMON_LIBS parameters geometry element method config)
 foreach (lib ${COMMON_LIBS})
