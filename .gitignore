@@ -1,11 +1,8 @@
 .idea
 test
 cmake-build-*
-<<<<<<< HEAD
 build
 chargefw2
 scripts/input
 scripts/output
-=======
 .ipynb_checkpoints
->>>>>>> 96e3d86de121d98aa4e860707f44d4aec9e2cea5
