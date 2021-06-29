@@ -2,6 +2,10 @@
 // Created by krab1k on 19.05.21.
 //
 
+#include <iostream>
+#include <chrono>
+
+
 #include <fmt/format.h>
 #include <dlfcn.h>
 #include <filesystem>
@@ -12,6 +16,7 @@
 
 #include "structures/molecule_set.h"
 #include "formats/reader.h"
+#include "formats/cif.h"
 #include "config.h"
 #include "charges.h"
 #include "candidates.h"
@@ -32,6 +37,8 @@ std::vector<std::string> get_available_parameters(const std::string &method_name
 
 std::map<std::string, std::vector<std::string>> get_sutaible_methods_python(struct Molecules &molecules);
 
+void 
+write_cif(const Molecules &molecules, const std::map<std::string, std::vector<double>> &charges, const std::string &inp_cif);
 
 struct Molecules {
     MoleculeSet ms;
@@ -45,12 +52,23 @@ struct Molecules {
 Molecules::Molecules(const std::string &filename, bool read_hetatm = true, bool ignore_water = true) {
     config::read_hetatm = read_hetatm;
     config::ignore_water = ignore_water;
+
+    std::cout << "Loading molecule" << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
     ms = load_molecule_set(filename);
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = duration_cast<std::chrono::seconds>(stop - start);
+    std::cout << "Finished loading molecule " << duration.count() << " seconds" <<  std::endl;
+
     if (ms.molecules().empty()) {
         throw std::runtime_error("No molecules were loaded from the input file");
     }
-
+    std::cout << "Fulfilling requirements" << std::endl;
+    start = std::chrono::high_resolution_clock::now();
     ms.fulfill_requirements({RequiredFeatures::DISTANCE_TREE, RequiredFeatures::BOND_DISTANCES});
+    stop = std::chrono::high_resolution_clock::now();
+    duration = duration_cast<std::chrono::seconds>(stop - start);
+    std::cout << "Finished fulfilling requirements " << duration.count() << " seconds" <<  std::endl;
 }
 
 
@@ -100,7 +118,15 @@ std::vector<std::string> get_available_parameters(const std::string &method_name
 
 std::map<std::string, std::vector<std::string>> get_sutaible_methods_python(struct Molecules &molecules) {
     std::map<std::string, std::vector<std::string>> results;
+
+    std::cout << "Running suitable method" << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
     const auto res = get_suitable_methods(molecules.ms, molecules.ms.has_proteins(), false);
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = duration_cast<std::chrono::seconds>(stop - start);
+    std::cout << "Finished running suitable methods " << duration.count() << " seconds" <<  std::endl;
+
+
     for (const auto &[method_name, parameters]: res) {
         results[method_name] = {};
         for (const auto &parameter_file: parameters) {
@@ -149,7 +175,13 @@ calculate_charges(struct Molecules &molecules, const std::string &method_name, s
     std::map<std::string, std::vector<double>> charges;
     for (auto &mol: molecules.ms.molecules()) {
 
+        std::cout << "Calculating Charges" << std::endl;
+        auto start = std::chrono::high_resolution_clock::now();
         auto results = method->calculate_charges(mol);
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = duration_cast<std::chrono::seconds>(stop - start);
+        std::cout << "Finished calculating charges " << duration.count() << " seconds" <<  std::endl;
+
         if (std::any_of(results.begin(), results.end(), [](double chg) { return not isfinite(chg); })) {
             fmt::print("Incorrect values encoutened for: {}. Skipping molecule.\n", mol.name());
         } else {
@@ -159,6 +191,14 @@ calculate_charges(struct Molecules &molecules, const std::string &method_name, s
 
     dlclose(handle);
     return charges;
+}
+
+
+void
+write_cif(const Molecules &molecules, const std::map<std::string, std::vector<double>> &charges, const std::string &inp_cif) {
+
+    auto cif = CIF();
+    cif.save_charges(molecules.ms, Charges(charges), inp_cif);
 }
 
 
@@ -174,4 +214,6 @@ PYBIND11_MODULE(chargefw2_python, m) {
     m.def("get_suitable_methods", &get_sutaible_methods_python, "molecules"_a, "Get methods and parameters that are suitable for a given set of molecules");
     m.def("calculate_charges", &calculate_charges, "molecules"_a, "method_name"_a, py::arg("parameters_name") = py::none(),
           "Calculate partial atomic charges for a given molecules and method");
+    m.def("write_cif", &write_cif, "molecules"_a, "charges"_a, "inp_file"_a,
+          "Write cif file (.fw2.cif) with the partial charges");
 }

@@ -18,6 +18,9 @@ public:
 
     explicit Charges(const std::string &filename);
 
+    explicit Charges(const std::map<std::string, std::vector<double>> &charges)
+    : charges_(charges){}
+
     void set_method_name(const std::string &method_name) { method_name_ = method_name; }
 
     [[nodiscard]] std::string method_name() const { return method_name_; }
