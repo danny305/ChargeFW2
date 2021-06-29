@@ -38,7 +38,7 @@ std::vector<std::string> get_available_parameters(const std::string &method_name
 std::map<std::string, std::vector<std::string>> get_sutaible_methods_python(struct Molecules &molecules);
 
 void 
-write_cif(const Molecules &molecules, const std::map<std::string, std::vector<double>> &charges, const std::string &inp_cif);
+write_cif(const Molecules &molecules, const std::map<std::string, std::vector<double>> &charges, const std::string &inp_cif, std::optional<const std::string> &out_dir);
 
 struct Molecules {
     MoleculeSet ms;
@@ -195,8 +195,11 @@ calculate_charges(struct Molecules &molecules, const std::string &method_name, s
 
 
 void
-write_cif(const Molecules &molecules, const std::map<std::string, std::vector<double>> &charges, const std::string &inp_cif) {
+write_cif(const Molecules &molecules, const std::map<std::string, std::vector<double>> &charges, const std::string &inp_cif, std::optional<const std::string> &out_dir) {
 
+    if (out_dir.has_value() && fs::is_directory(fs::path{out_dir.value()})){
+        config::chg_out_dir = out_dir.value();
+    }
     auto cif = CIF();
     cif.save_charges(molecules.ms, Charges(charges), inp_cif);
 }
@@ -214,6 +217,6 @@ PYBIND11_MODULE(chargefw2_python, m) {
     m.def("get_suitable_methods", &get_sutaible_methods_python, "molecules"_a, "Get methods and parameters that are suitable for a given set of molecules");
     m.def("calculate_charges", &calculate_charges, "molecules"_a, "method_name"_a, py::arg("parameters_name") = py::none(),
           "Calculate partial atomic charges for a given molecules and method");
-    m.def("write_cif", &write_cif, "molecules"_a, "charges"_a, "inp_file"_a,
+    m.def("write_cif", &write_cif, "molecules"_a, "charges"_a, "inp_file"_a, "out_dir"_a = py::none(),
           "Write cif file (.fw2.cif) with the partial charges");
 }
