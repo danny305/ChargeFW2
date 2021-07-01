@@ -63,12 +63,6 @@ Molecules::Molecules(const std::string &filename, bool read_hetatm = true, bool 
     if (ms.molecules().empty()) {
         throw std::runtime_error("No molecules were loaded from the input file");
     }
-    std::cout << "Fulfilling requirements" << std::endl;
-    start = std::chrono::high_resolution_clock::now();
-    ms.fulfill_requirements({RequiredFeatures::DISTANCE_TREE, RequiredFeatures::BOND_DISTANCES});
-    stop = std::chrono::high_resolution_clock::now();
-    duration = duration_cast<std::chrono::seconds>(stop - start);
-    std::cout << "Finished fulfilling requirements " << duration.count() << " seconds" <<  std::endl;
 }
 
 
@@ -166,6 +160,8 @@ calculate_charges(struct Molecules &molecules, const std::string &method_name, s
     }
 
     method->set_parameters(parameters.get());
+
+    molecules.ms.fulfill_requirements(method->get_requirements());
 
     /* Use only default values */
     for (const auto &[opt, info]: method->get_options()) {
