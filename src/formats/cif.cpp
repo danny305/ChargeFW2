@@ -59,7 +59,7 @@ public:
 
     int find_row(gemmi::cif::Table &table, int start_idx = 0) const {
         int idx = start_idx; 
-        int total_rows = table.length();
+        int total_rows = static_cast<int>(table.length());
 
         assert(idx < total_rows);
 
@@ -91,7 +91,7 @@ public:
 
 private:
     bool is_row(const gemmi::cif::Table::Row &row) const {
-        int model = std::stoul(row[11]);
+        int model = static_cast<int>(std::stoul(row[11]));
         const std::string &chain = row[1];
         const std::string &residue = row[4];
         const std::string &res_num = row[2];
@@ -111,10 +111,62 @@ private:
 };
 
 
-void CIF::write_cif_block(std::ostream &out,
-                          gemmi::cif::Table &table, 
-                          std::vector<std::string> &p_charge, 
-                          std::vector<std::string> &vdw_radii) {
+void CIF::append_fw2_config(gemmi::cif::Block &block) {
+
+    std::string config_prefix = "_chargeFW2_config.";
+
+    std::vector<std::string> config_tags{
+        "method", "parameter_set", 
+        "read_hetam", "ignore_waters", 
+        "permissive_types", "ref_charge_file"
+    };
+
+    std::string method = "?";
+    std::string param_file = "?";
+    std::string read_hetatm = "False";
+    std::string ignore_water = "False";
+    std::string permissive_types = "False";
+    std::string ref_chg_file = "?";
+
+    if (!config::method_name.empty()) method = config::method_name;
+    if (!config::par_file.empty()) param_file = fs::path(config::par_file).stem().string();
+    if (config::read_hetatm) read_hetatm = "True";
+    if (config::ignore_water) ignore_water = "True";
+    if (config::permissive_types) permissive_types = "True";
+    if (!config::ref_chg_file.empty()) ref_chg_file = fs::path(config::ref_chg_file).filename().string();
+
+    std::vector<std::string> config_data{
+        method, param_file,
+        read_hetatm, ignore_water,
+        permissive_types, ref_chg_file
+    };
+
+    for (unsigned i = 0; i != config_tags.size(); ++i) {
+            block.set_pair(config_prefix + config_tags[i], config_data[i]);
+    }
+}
+
+
+void CIF::replace_fw2_columns(gemmi::cif::Table &table, 
+                              std::vector<std::string> &p_charge, 
+                              std::vector<std::string> &vdw_radii,
+                              const std::vector<std::string> &fw2_tags) {
+
+    std::vector<std::vector<std::string>> fw2_columns = {p_charge, vdw_radii};
+
+    assert(fw2_columns.size() == fw2_tags.size());
+
+    for (unsigned i = 0; i != fw2_tags.size(); ++i){
+        auto column = table.bloc.find_loop(fw2_tags[i]);
+        std::copy(fw2_columns[i].begin(), fw2_columns[i].end(), column.begin());
+    }
+}
+
+
+void CIF::append_fw2_columns(gemmi::cif::Table &table,
+                             std::vector<std::string> &p_charge, 
+                             std::vector<std::string> &vdw_radii,
+                             const std::vector<std::string> &fw2_tags) {
 
     auto &loop = *table.get_loop();
 
@@ -123,25 +175,43 @@ void CIF::write_cif_block(std::ostream &out,
 
     // Creates a new table full of empty strings with the correct number of dimensions
     // Outside vector size is the # of columns, inside vector size is the # of rows.
-    std::vector<std::vector<std::string>> newCols(new_tag_size, {loop.length(), {"Empty"}});
+    std::vector<std::vector<std::string>> new_columns(new_tag_size, {loop.length(), {"Empty"}});
 
     // Copies data from original columns to their respecitve column in the new table filled with empty strings.
     // Leaving only the new appended columns as empty strings
-    for (unsigned int i = 0; i != orig_tag_size; ++i) {
-        auto iCol = table.bloc.find_loop(loop.tags[i]);
-        std::copy(iCol.begin(), iCol.end(), newCols[i].begin());
+    for (unsigned i = 0; i != orig_tag_size; ++i) {
+        auto column = table.bloc.find_loop(loop.tags[i]);
+        std::copy(column.begin(), column.end(), new_columns[i].begin());
     }
 
-    newCols[new_tag_size - 2] = std::move(p_charge);
-    newCols[new_tag_size - 1] = std::move(vdw_radii);
+    new_columns[new_tag_size - 2] = std::move(p_charge);
+    new_columns[new_tag_size - 1] = std::move(vdw_radii);
 
-    std::vector<std::string> new_tags{
-        "_atom_site.fw2_charge",
-        "_atom_site.fw2_vdw_radius"};
-    for (const auto &tag : new_tags)
+    for (const auto &tag : fw2_tags)
         loop.tags.push_back(tag);
 
-    loop.set_all_values(newCols);
+    loop.set_all_values(new_columns);
+}                                
+
+
+void CIF::write_cif_block(std::ostream &out,
+                          gemmi::cif::Table &table, 
+                          std::vector<std::string> &p_charge, 
+                          std::vector<std::string> &vdw_radii) {
+
+    append_fw2_config(table.bloc);
+
+    std::vector<std::string> fw2_tags{
+        "_atom_site.fw2_charge",
+        "_atom_site.fw2_vdw_radius"};
+
+    auto &loop = *table.get_loop();
+
+    if (loop.has_tag(fw2_tags[0]) && loop.has_tag(fw2_tags[1])){
+        replace_fw2_columns(table, p_charge, vdw_radii, fw2_tags);
+    } else {
+        append_fw2_columns(table, p_charge, vdw_radii, fw2_tags);
+    }
 
     gemmi::cif::write_cif_block_to_stream(out, table.bloc);
 }
@@ -168,10 +238,9 @@ void CIF::save_charges(const MoleculeSet &ms, const Charges &charges, const std:
 
     const auto &molecule = ms.molecules()[0];
 
-
     // ChargeFW2 is hardcoded to only read first model.
-    const int model{1};
-    int row_num{0};
+    const int model = 1;
+    int row_num = 0;
 
     try {
         auto chg = charges[molecule.name()];
@@ -196,7 +265,6 @@ void CIF::save_charges(const MoleculeSet &ms, const Charges &charges, const std:
             p_charge[row_num]  = std::to_string(chg[i]);
             vdw_radii[row_num] = std::to_string(atom.element().vdw_radius());
         }
-
         write_cif_block(out_stream, table, p_charge, vdw_radii);
     }
     catch (std::out_of_range &) {
