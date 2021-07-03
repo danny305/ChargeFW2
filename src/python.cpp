@@ -2,9 +2,6 @@
 // Created by krab1k on 19.05.21.
 //
 
-#include <iostream>
-#include <chrono>
-
 
 #include <fmt/format.h>
 #include <dlfcn.h>
@@ -53,12 +50,7 @@ Molecules::Molecules(const std::string &filename, bool read_hetatm = true, bool 
     config::read_hetatm = read_hetatm;
     config::ignore_water = ignore_water;
 
-    std::cout << "Loading molecule" << std::endl;
-    auto start = std::chrono::high_resolution_clock::now();
     ms = load_molecule_set(filename);
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = duration_cast<std::chrono::seconds>(stop - start);
-    std::cout << "Finished loading molecule " << duration.count() << " seconds" <<  std::endl;
 
     if (ms.molecules().empty()) {
         throw std::runtime_error("No molecules were loaded from the input file");
@@ -113,13 +105,7 @@ std::vector<std::string> get_available_parameters(const std::string &method_name
 std::map<std::string, std::vector<std::string>> get_sutaible_methods_python(struct Molecules &molecules) {
     std::map<std::string, std::vector<std::string>> results;
 
-    std::cout << "Running suitable method" << std::endl;
-    auto start = std::chrono::high_resolution_clock::now();
     const auto res = get_suitable_methods(molecules.ms, molecules.ms.has_proteins(), false);
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = duration_cast<std::chrono::seconds>(stop - start);
-    std::cout << "Finished running suitable methods " << duration.count() << " seconds" <<  std::endl;
-
 
     for (const auto &[method_name, parameters]: res) {
         results[method_name] = {};
@@ -149,8 +135,11 @@ calculate_charges(struct Molecules &molecules, const std::string &method_name, s
             throw std::runtime_error(std::string("Method ") + method_name + std::string(" requires parameters"));
         }
 
+        config::method_name = method_name;
+        config::par_file = parameters_name.value();
+
         std::string parameter_file = (std::string(INSTALL_DIR) + "/share/parameters/" + parameters_name.value() + ".json");
-        if (not parameter_file.empty()) {
+        if (!parameter_file.empty()) {
             parameters = std::make_unique<Parameters>(parameter_file);
             auto unclassified = molecules.ms.classify_set_from_parameters(*parameters, false, true);
             if (unclassified) {
@@ -170,14 +159,7 @@ calculate_charges(struct Molecules &molecules, const std::string &method_name, s
 
     std::map<std::string, std::vector<double>> charges;
     for (auto &mol: molecules.ms.molecules()) {
-
-        std::cout << "Calculating Charges" << std::endl;
-        auto start = std::chrono::high_resolution_clock::now();
         auto results = method->calculate_charges(mol);
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = duration_cast<std::chrono::seconds>(stop - start);
-        std::cout << "Finished calculating charges " << duration.count() << " seconds" <<  std::endl;
-
         if (std::any_of(results.begin(), results.end(), [](double chg) { return not isfinite(chg); })) {
             fmt::print("Incorrect values encoutened for: {}. Skipping molecule.\n", mol.name());
         } else {
