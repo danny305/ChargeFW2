@@ -37,6 +37,8 @@ std::map<std::string, std::vector<std::string>> get_sutaible_methods_python(stru
 void 
 write_cif(const Molecules &molecules, const std::map<std::string, std::vector<double>> &charges, const std::string &inp_cif, std::optional<const std::string> &out_dir);
 
+std::string params_dir();
+
 struct Molecules {
     MoleculeSet ms;
 
@@ -183,6 +185,11 @@ write_cif(const Molecules &molecules, const std::map<std::string, std::vector<do
 }
 
 
+std::string params_dir() {
+     return std::string(INSTALL_DIR) + "/share/parameters";
+}
+
+
 PYBIND11_MODULE(chargefw2_python, m) {
     m.doc() = "Python bindings to ChargeFW2";
     py::class_<Molecules>(m, "Molecules")
@@ -197,4 +204,5 @@ PYBIND11_MODULE(chargefw2_python, m) {
           "Calculate partial atomic charges for a given molecules and method");
     m.def("write_cif", &write_cif, "molecules"_a, "charges"_a, "inp_file"_a, "out_dir"_a = py::none(),
           "Write cif file (.fw2.cif) with the partial charges");
+    m.def("params_dir", &params_dir, "Returns the directory where all parameters are located.");
 }
