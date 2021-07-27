@@ -90,11 +90,11 @@ Eigen::VectorXd EEMethod::solve_EE(const Molecule &molecule,
     auto method = get_option_value<std::string>("type");
     auto radius = get_option_value<double>("radius");
 
-    if (method != "cover" and molecule.atoms().size() > 80000) {
+    if (method != "cover" and molecule.atoms().size() > 250000) {
         fmt::print("Switching to cover as the molecule is too big\n");
         fmt::print("Using radius {}\n", radius);
         method = "cover";
-    } else if (method == "full" and molecule.atoms().size() > 20000) {
+    } else if (method == "full" and molecule.atoms().size() > 30000) {
         fmt::print("Switching to cutoff as the molecule is too big\n");
         fmt::print("Using radius {}\n", radius);
         method = "cutoff";
