@@ -9,8 +9,8 @@ RUN apt-get update && \
         libfmt-dev nlohmann-json3-dev python3-pybind11 \
         python3-dev g++ gemmi-dev tao-pegtl-dev
 
-RUN git clone --depth 1 https://github.com/krab1k/ChargeFW2.git && \
-    cd ChargeFW2 && git checkout master && mkdir build && cd build && \
+RUN git clone --depth 1 -b patch/cutoff-limits https://github.com/danny305/ChargeFW2.git && \
+    cd ChargeFW2 && git checkout patch/cutoff-limits && mkdir build && cd build && \
     cmake .. -DCMAKE_BUILD_TYPE=Release && make && make install
 
 ENV PYTHONPATH=/usr/local/lib
