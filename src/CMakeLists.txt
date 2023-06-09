@@ -3,6 +3,7 @@ find_package(fmt 5.3 REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(nanoflann 1.3 REQUIRED)
 find_package(pybind11)
+find_package(gemmi 0.6 CONFIG REQUIRED)
 
 include_directories(${PROJECT_BINARY_DIR}/src)
 include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
