@@ -222,7 +222,6 @@ void CIF::save_charges(const MoleculeSet &ms, const Charges &charges, const std:
     int row_num = 0;
     try {
         for (const auto &mol: ms.molecules()){
-            fmt::print("Writing charges for: {}\n", mol.name());
             auto chg = charges[mol.name()];
             for (size_t i = 0; i < mol.atoms().size(); i++) {
                 const auto &atom = mol.atoms()[i];
