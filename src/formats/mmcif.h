@@ -13,9 +13,9 @@
 class mmCIF: public Reader {
     static void process_record(const std::string &structure_data, std::unique_ptr<std::vector<Molecule>> &molecules);
 
-    static void read_protein_molecule(gemmi::cif::Block &data, std::unique_ptr<std::vector<Atom>> &atoms);
+    static void read_protein_molecule(gemmi::cif::Block &data,  std::unique_ptr<std::vector<Molecule>> &molecules);
 
-    static void read_ccd_molecule(gemmi::cif::Block &data, std::unique_ptr<std::vector<Atom>> &atoms, std::unique_ptr<std::vector<Bond>> &bonds);
+    static void read_ccd_molecule(gemmi::cif::Block &data,  std::unique_ptr<std::vector<Molecule>> &molecules);
 
 public:
     mmCIF();

@@ -70,9 +70,9 @@ public:
             ++idx;
         }
 
-        fmt::print(stderr, "In MCRA::find_row(), unable to find Atom(1, {}, {}, {}, {})\n"
-                    "Looping through entire table to double check...",
-                    this->_chain, this->_res_num, this->_residue, this->_atom); 
+        fmt::print(stderr, "In MCRA::find_row(), unable to find Atom({}, {}, {}, {}, {})\n"
+                    "Looping through entire table to double check...\n",
+                    this->_model, this->_chain, this->_res_num, this->_residue, this->_atom); 
 
         idx = 0;
         for (const auto site : table) {
@@ -196,7 +196,7 @@ void CIF::write_cif_block(std::ostream &out,
 
     append_fw2_config(table.bloc, method, parameters);
 
-    gemmi::cif::write_cif_block_to_stream(out, table.bloc);
+    gemmi::cif::write_cif_block_to_stream(out, table.bloc); // Need to add gemmi:cif::Style::Aligned with gemmi 0.6
 }
 
 
@@ -219,34 +219,32 @@ void CIF::save_charges(const MoleculeSet &ms, const Charges &charges, const std:
     auto p_charge  = std::vector<std::string>{table.length(), "?"};
     auto vdw_radii = std::vector<std::string>{table.length(), "?"};
 
-    const auto &molecule = ms.molecules()[0];
-
-    // ChargeFW2 is hardcoded to only read first model.
-    const int model = 1;
     int row_num = 0;
-
     try {
-        auto chg = charges[molecule.name()];
-        for (size_t i = 0; i < molecule.atoms().size(); i++) {
-            const auto &atom = molecule.atoms()[i];
+        for (const auto &mol: ms.molecules()){
+            fmt::print("Writing charges for: {}\n", mol.name());
+            auto chg = charges[mol.name()];
+            for (size_t i = 0; i < mol.atoms().size(); i++) {
+                const auto &atom = mol.atoms()[i];
 
-            MCRA mcra{
-                model, 
-                atom.chain_id(), 
-                std::to_string(atom.residue_id()), 
-                atom.residue(), 
-                atom.name()
-            };
+                MCRA mcra{
+                    atom.model(), 
+                    atom.chain_id(), 
+                    std::to_string(atom.residue_id()), 
+                    atom.residue(), 
+                    atom.name()
+                };
 
-            row_num = mcra.find_row(table, row_num);
+                row_num = mcra.find_row(table, row_num);
 
-            if (row_num == -1){
-                fmt::print(stderr, "Failed to find Atom(1, {}, {}, {}, {})\n", 
-                    atom.chain_id(), atom.residue_id(), atom.residue(), atom.name());
-                exit(EXIT_FILE_ERROR);
+                if (row_num == -1){
+                    fmt::print(stderr, "Failed to find Atom({}, {}, {}, {}, {})\n", 
+                        atom.model(), atom.chain_id(), atom.residue_id(), atom.residue(), atom.name());
+                    exit(EXIT_FILE_ERROR);
+                }
+                p_charge[row_num]  = fmt::format("{:.3f}", chg[i]);
+                vdw_radii[row_num] = fmt::format("{:.3f}", atom.element().vdw_radius());
             }
-            p_charge[row_num]  = fmt::format("{:.3f}", chg[i]);
-            vdw_radii[row_num] = fmt::format("{:.3f}", atom.element().vdw_radius());
         }
         write_cif_block(out_stream, table, p_charge, vdw_radii, charges.method_name(), charges.parameters_name());
     }

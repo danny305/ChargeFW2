@@ -26,6 +26,7 @@ class Atom {
     std::string residue_{};
     std::string chain_id_{};
     bool hetatm_{};
+    int model_{};
 
     friend class Molecule;
 
@@ -33,7 +34,7 @@ class Atom {
 
 public:
     Atom(size_t index, const Element *element, double x, double y, double z, std::string atom_name, int residue_id,
-         std::string residue, std::string chain_id, bool hetatm);
+         std::string residue, std::string chain_id, bool hetatm, int model = 1);
 
     [[nodiscard]] size_t index() const { return index_; }
 
@@ -56,6 +57,8 @@ public:
     [[nodiscard]] std::string name() const { return atom_name_; }
 
     [[nodiscard]] bool hetatm() const { return hetatm_; }
+
+    [[nodiscard]] int model() const { return model_; }
 
     void _set_formal_charge(int charge) { formal_charge_ = charge; }
 

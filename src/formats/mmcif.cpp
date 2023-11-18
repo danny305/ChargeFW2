@@ -1,7 +1,6 @@
 //
 // Created by krab1k on 28.1.19.
 //
-
 #include <string>
 #include <stdexcept>
 #include <fstream>
@@ -19,44 +18,63 @@
 #include "../utility/strings.h"
 
 
-void mmCIF::read_protein_molecule(gemmi::cif::Block &data, std::unique_ptr<std::vector<Atom>> &atoms) {
+void mmCIF::read_protein_molecule(gemmi::cif::Block &data,  std::unique_ptr<std::vector<Molecule>> &molecules) {
     auto structure = gemmi::make_structure_from_block(data);
     if (structure.models.empty()) {
         throw std::runtime_error("Not enough information to create a structure");
     }
 
-    /* Read first model only */
-    auto model = structure.models[0];
+    std::string name;
+    std::unique_ptr<std::vector<Atom>> atoms;
+    std::unique_ptr<std::vector<Bond>> bonds;
+
+    /* Read all model only */
     size_t idx = 0;
-    for (const auto &chain: model.chains) {
-        for (const auto &residue: chain.residues) {
-            bool hetatm = residue.het_flag == 'H';
-            for (const auto &atom: residue.atoms) {
-                double x = atom.pos.x;
-                double y = atom.pos.y;
-                double z = atom.pos.z;
-                auto element = PeriodicTable::pte().get_element_by_symbol(get_element_symbol(atom.element.name()));
+    for (const auto &model: structure.models) {
+        idx = 0;
+        name = data.name + std::string{"_"} + model.name;
+        atoms = std::make_unique<std::vector<Atom>>();
+        bonds = std::make_unique<std::vector<Bond>>();
+        for (const auto &chain: model.chains) {
+            for (const auto &residue: chain.residues) {
+                bool hetatm = residue.het_flag == 'H';
+                for (const auto &atom: residue.atoms) {
+                    double x = atom.pos.x;
+                    double y = atom.pos.y;
+                    double z = atom.pos.z;
+                    auto element = PeriodicTable::pte().get_element_by_symbol(get_element_symbol(atom.element.name()));
 
-                if(atom.charge) {
-                    fmt::print("Got charge {} on{}\n", atom.charge, atom.element.name());
-                }
+                    if(atom.charge) {
+                        fmt::print("Got charge {} on{}\n", atom.charge, atom.element.name());
+                    }
 
-                if (not atom.has_altloc() or atom.altloc == 'A') {
-                    if ((not hetatm) or
-                        (config::read_hetatm and residue.name != "HOH") or
-                        (config::read_hetatm and not config::ignore_water)) {
-                        atoms->emplace_back(idx, element, x, y, z, atom.name, residue.seqid.num.value, residue.name, chain.name, hetatm);
-                        atoms->back()._set_formal_charge(atom.charge);
-                        idx++;
+                    if (not atom.has_altloc() or atom.altloc == 'A') {
+                        if ((not hetatm) or
+                            (config::read_hetatm and residue.name != "HOH") or
+                            (config::read_hetatm and not config::ignore_water)) {
+                            atoms->emplace_back(idx, element, x, y, z, atom.name, residue.seqid.num.value, residue.name, chain.name, hetatm, std::stoi(model.name));
+                            atoms->back()._set_formal_charge(atom.charge);
+                            idx++;
+                        }
                     }
                 }
             }
         }
+        bonds = get_bonds(atoms);
+        molecules->emplace_back(name, std::move(atoms), std::move(bonds));
+        name.clear();
+        atoms.reset();
+        bonds.reset();
     }
 }
 
 
-void mmCIF::read_ccd_molecule(gemmi::cif::Block &data, std::unique_ptr<std::vector<Atom>> &atoms, std::unique_ptr<std::vector<Bond>> &bonds) {
+void mmCIF::read_ccd_molecule(gemmi::cif::Block &data, std::unique_ptr<std::vector<Molecule>> &molecules) {
+    // Never tested this ccd refactor, only did the protein one
+    std::string name{data.name};
+    auto atoms = std::make_unique<std::vector<Atom>>();
+    auto bonds = std::make_unique<std::vector<Bond>>();
+    
     auto atom_table = data.find("_chem_comp_atom.", {"model_Cartn_x", "model_Cartn_y", "model_Cartn_z",
                                                      "type_symbol", "atom_id", "comp_id", "charge"});
     size_t idx = 0;
@@ -113,42 +131,31 @@ void mmCIF::read_ccd_molecule(gemmi::cif::Block &data, std::unique_ptr<std::vect
         }
         bonds->emplace_back(atom_names[row[0]], atom_names[row[1]], order);
     }
+     molecules->emplace_back(name, std::move(atoms), std::move(bonds));
 }
 
 
 void mmCIF::process_record(const std::string &structure_data, std::unique_ptr<std::vector<Molecule>> &molecules) {
-
-    auto atoms = std::make_unique<std::vector<Atom>>();
-    auto bonds = std::make_unique<std::vector<Bond>>();
-
-    std::string name;
     try {
         gemmi::cif::Document doc = gemmi::cif::read_string(structure_data);
         auto data = doc.sole_block();
-        name = data.name;
         const auto names = data.get_mmcif_category_names();
 
         bool has_atom_site = std::find(names.begin(), names.end(), "_atom_site.") != names.end();
         bool has_chem_comp = std::find(names.begin(), names.end(), "_chem_comp_atom.") != names.end();
 
         if (has_atom_site) {
-            read_protein_molecule(data, atoms);
+            read_protein_molecule(data, molecules);
         } else if (has_chem_comp) {
-            read_ccd_molecule(data, atoms, bonds);
+            read_ccd_molecule(data, molecules);
         }
 
-        if (atoms->empty()) {
-            throw std::runtime_error("No atoms were loaded");
+        if (molecules->empty()) {
+            throw std::runtime_error("No atoms/molecules were loaded");
         }
-
-        if (has_atom_site) {
-            bonds = get_bonds(atoms);
-        }
-
-        molecules->emplace_back(name, std::move(atoms), std::move(bonds));
 
     } catch (std::exception &e) {
-        fmt::print(stderr, "Error when reading {}: {}\n", name, e.what());
+        fmt::print(stderr, "Error when reading {}: {}\n", structure_data, e.what());
     }
 }
 
