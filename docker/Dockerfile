@@ -1,31 +1,17 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 WORKDIR /dependencies
 
-ENV TZ=US/Central
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-
 RUN apt-get update && \
-    apt-get install -y git build-essential cmake ninja-build vim wget \
-        lsb-release software-properties-common libomp-dev \
-        libgtest-dev libeigen3-dev libboost-all-dev \
+    apt-get install -y git cmake libnanoflann-dev \
+        libomp-dev libeigen3-dev libfmt-dev \
+        libboost-system-dev libboost-program-options-dev libboost-filesystem-dev \
         libfmt-dev nlohmann-json3-dev python3-pybind11 \
-        python3-dev python3-pip clang
+        python3-dev g++ gemmi-dev tao-pegtl-dev
 
-RUN git clone https://github.com/jlblancoc/nanoflann.git && \
-    cd nanoflann && mkdir build && cd build && \
-    cmake .. -DCMAKE_CXX_COMPILER=clang++ && \
-    make && make install
-
-RUN git clone https://github.com/project-gemmi/gemmi.git && \
-    cp -r gemmi/include/gemmi /usr/include
-
-RUN git clone https://github.com/krab1k/ChargeFW2.git && \
-    cd ChargeFW2 && git checkout master && mkdir build && cd build && \
-    cmake .. -GNinja \
-        -DCMAKE_CXX_COMPILER=clang++ \
-        -DCMAKE_BUILD_TYPE=Release && \
-    ninja && ninja install
+RUN git clone --depth 1 -b patch/cutoff-limits https://github.com/danny305/ChargeFW2.git && \
+    cd ChargeFW2 && git checkout patch/cutoff-limits && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && make && make install
 
 ENV PYTHONPATH=/usr/local/lib
 
